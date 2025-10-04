@@ -27,5 +27,5 @@
 
 # --- Docker persistent data (repo root) ---
 /docker/mysql/data/
- /docker/mysql/backups/
- /docker/nginx/logs/
+/docker/mysql/backups/
+/docker/nginx/logs/
