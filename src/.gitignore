@@ -1,0 +1,30 @@
+/node_modules
+/public/hot
+/public/storage
+/storage/*.key
+/vendor
+.env
+.env.backup
+.phpunit.result.cache
+docker-compose.override.yml
+Homestead.json
+Homestead.yaml
+npm-debug.log*
+yarn-error.log*
+/.idea
+/.vscode
+
+# Docker 永続データ（絶対コミットしない）
+/docker/mysql/data/
+/docker/mysql/backups/
+/docker/nginx/logs/
+
+# Laravel ストレージ
+/storage/app/*
+!/storage/app/public
+/storage/logs/*
+/storage/framework/cache/*
+/storage/framework/sessions/*
+/storage/framework/testing/*
+/storage/framework/views/*
+/storage/debugbar/
