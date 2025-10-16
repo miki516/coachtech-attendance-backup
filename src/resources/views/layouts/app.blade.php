@@ -18,50 +18,38 @@
 <body class="site">
     <header class="site-header">
         <div class="site-header-logo">
-            <a href="{{ url('/') }}">
+            <a href="{{ route('user.attendance.clockin') }}">
                 <img src="{{ asset('images/logo.svg') }}" alt="COACHTECH">
             </a>
         </div>
 
         <nav class="site-header-nav">
             {{-- 会員登録・ログイン・メール認証誘導では非表示 --}}
-            @unless (Route::is('register') || Route::is('login') || Route::is('verification.notice'))
+            @unless (request()->routeIs(['register', 'login', 'verification.notice', 'admin.login']))
                 @auth
-
-                    {{-- 一般ユーザーメニュー --}}
-                    @unless (auth()->user()->is_admin)
-                        {{-- 出勤登録 --}}
-                        <a href="{{ route('user.attendance.register') }}" class="site-header-link">勤怠</a>
-
-                        {{-- 勤怠一覧 --}}
-                        <a href="{{ route('user.attendance.index') }}" class="site-header-link site-header-link-sell">勤怠一覧</a>
-
-                        {{-- 申請詳細 --}}
-                        <a href="{{ route('user.request.index') }}" class="site-header-link site-header-link-sell">申請</a>
-                    @endunless
-
-                    {{-- 管理者用メニュー --}}
-                    @if (auth()->user()->is_admin)
-                        {{-- 勤怠一覧 --}}
+                    @if (auth()->user()?->role === 'admin')
+                        {{-- 管理者用メニュー --}}
                         <a href="{{ route('admin.attendance.index') }}" class="site-header-link">勤怠一覧</a>
-
-                        {{-- スタッフ一覧 --}}
                         <a href="{{ route('admin.staff.index') }}" class="site-header-link site-header-link-sell">スタッフ一覧</a>
-
-                        {{-- 申請一覧 --}}
                         <a href="{{ route('admin.request.index') }}" class="site-header-link site-header-link-sell">申請一覧</a>
+                    @else
+                        {{-- 一般ユーザーメニュー --}}
+                        <a href="{{ route('user.attendance.punch') }}" class="site-header-link">勤怠</a>
+                        <a href="{{ route('user.attendance.index') }}" class="site-header-link site-header-link-sell">勤怠一覧</a>
+                        <a href="{{ route('request.list') }}" class="site-header-link site-header-link-sell">申請</a>
                     @endif
-
-                @endauth
-
-                {{-- ログイン or ログアウト --}}
-                @auth
-                    <form method="POST" action="{{ route('logout') }}" class="site-header-logout-form">
-                        @csrf
-                        <button type="submit" class="site-header-logout-button">ログアウト</button>
-                    </form>
-                @else
-                    <a href="{{ route('login') }}" class="site-header-link">ログイン</a>
+                    {{-- ログアウトボタン --}}
+                    @if (auth()->user()?->role === 'admin')
+                        <form method="POST" action="{{ route('admin.logout') }}" class="site-header-logout-form">
+                            @csrf
+                            <button type="submit" class="site-header-logout-button">ログアウト</button>
+                        </form>
+                    @else
+                        <form method="POST" action="{{ route('logout') }}" class="site-header-logout-form">
+                            @csrf
+                            <button type="submit" class="site-header-logout-button">ログアウト</button>
+                        </form>
+                    @endif
                 @endauth
             @endunless
         </nav>
@@ -73,6 +61,8 @@
     </main>
 
     @yield('scripts')
+
+    @stack('scripts')
 </body>
 
 </html>

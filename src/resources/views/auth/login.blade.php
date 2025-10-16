@@ -8,7 +8,7 @@
     <div class="login-page">
         <h1 class="page-title">ログイン</h1>
         <div class="form-content">
-            <form class="form" method="POST" action="{{ route('admin.login.post') }}" autocomplete="on">
+            <form class="form" method="POST" action="{{ route('login') }}" autocomplete="on">
                 <div class="form-body">
                     @csrf
                     <!-- メールアドレス -->
@@ -18,7 +18,7 @@
                         </div>
                         <div>
                             <input class="field-control" id="email" type="email" name="email"
-                                value="{{ old('email') }}" autocomplete="username" inputmode="email" required />
+                                value="{{ old('email') }}" autocomplete="username" inputmode="email" />
                         </div>
                         <div class="form-error">
                             @error('email')
@@ -35,7 +35,7 @@
                         <div class="form-group-content">
                             <div class="field">
                                 <input class="field-control" id="password" type="password" name="password"
-                                    autocomplete="current-password" required />
+                                    autocomplete="current-password" />
                             </div>
                             <div class="form-error">
                                 @error('password')
