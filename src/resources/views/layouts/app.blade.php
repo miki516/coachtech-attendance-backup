@@ -31,7 +31,7 @@
                         {{-- 管理者用メニュー --}}
                         <a href="{{ route('admin.attendance.index') }}" class="site-header-link">勤怠一覧</a>
                         <a href="{{ route('admin.staff.index') }}" class="site-header-link site-header-link-sell">スタッフ一覧</a>
-                        <a href="{{ route('admin.request.index') }}" class="site-header-link site-header-link-sell">申請一覧</a>
+                        <a href="{{ route('request.list') }}" class="site-header-link site-header-link-sell">申請一覧</a>
                     @else
                         {{-- 一般ユーザーメニュー --}}
                         <a href="{{ route('user.attendance.punch') }}" class="site-header-link">勤怠</a>

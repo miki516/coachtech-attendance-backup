@@ -76,7 +76,7 @@ Route::get('/attendance/detail/{date}', [UserAttendanceController::class, 'show'
     ->where('date', '^\d{4}-\d{2}-\d{2}$')
     ->name('user.attendance.show');
 
-// 勤怠修正申請
+// 修正申請作成
 Route::post('/stamp_correction_request', [UserRequestController::class, 'store'])
     ->name('user.request.store');
 });

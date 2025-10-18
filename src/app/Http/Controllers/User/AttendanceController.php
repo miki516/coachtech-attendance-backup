@@ -5,6 +5,7 @@ namespace App\Http\Controllers\User;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\BreakTime;
+use App\Models\StampCorrectionRequest;
 use Carbon\CarbonPeriod;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -186,6 +187,7 @@ class AttendanceController extends Controller
                 'date'       => $day,
                 'attendance' => null,
                 'breaks'     => collect(),
+                'isPending'  => false,
             ]);
         }
 
@@ -193,10 +195,16 @@ class AttendanceController extends Controller
             ->sortBy('break_start')
             ->values();
 
+        $isPending = StampCorrectionRequest::where('user_id', $user->id)
+            ->where('attendance_id', $attendance->id)
+            ->where('status', 'pending')
+            ->exists();
+
         return view('attendance.detail', [
             'date'       => $day,
             'attendance' => $attendance,
             'breaks'     => $breaks,
+            'isPending'  => $isPending,
         ]);
     }
 }
