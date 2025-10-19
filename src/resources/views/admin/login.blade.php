@@ -6,9 +6,9 @@
 
 @section('content')
     <div class="login-page">
-        <h1 class="page-title">ログイン</h1>
+        <h1 class="page-title">管理者ログイン</h1>
         <div class="form-content">
-            <form class="form" method="POST" action="{{ route('admin.login.post') }}" autocomplete="on">
+            <form class="form" method="POST" action="{{ route('admin.login.post') }}" novalidate autocomplete="on">
                 <div class="form-body">
                     @csrf
                     <!-- メールアドレス -->
@@ -46,13 +46,9 @@
                     </div>
                 </div>
                 <div class="form-button">
-                    <button class="btn btn-solid auth-form-submit" type="submit">ログインする</button>
+                    <button class="btn btn-solid auth-form-submit" type="submit">管理者ログインする</button>
                 </div>
             </form>
-
-            <div class="form-footer">
-                <a href="{{ route('register') }}" class="form-footer-link">会員登録はこちら</a>
-            </div>
         </div>
     </div>
 @endsection

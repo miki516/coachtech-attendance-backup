@@ -17,8 +17,8 @@ class StoreStampCorrectionRequest extends FormRequest
         return [
             'date'           => ['required', 'date_format:Y-m-d'],
             'attendance_id'  => ['nullable', 'integer'],
-            'clock_in'       => ['nullable', 'date_format:H:i', 'required_with:clock_out'],
-            'clock_out'      => ['nullable', 'date_format:H:i', 'required_with:clock_in'],
+            'clock_in'       => ['nullable', 'date_format:H:i'],
+            'clock_out'      => ['nullable', 'date_format:H:i'],
             'breaks'         => ['nullable', 'array'],
             'breaks.*.start' => ['nullable', 'date_format:H:i'],
             'breaks.*.end'   => ['nullable', 'date_format:H:i'],
@@ -42,9 +42,6 @@ class StoreStampCorrectionRequest extends FormRequest
     public function withValidator($validator)
     {
         $validator->after(function ($validator) {
-            $attendanceId = $this->input('attendance_id');
-            if (!$attendanceId) return;
-
             // 時刻文字列（例 "09:30"）を Carbon に変換
             $convertToDateTime = function ($time) {
                 return $time ? Carbon::createFromTimeString($time) : null;
@@ -63,6 +60,9 @@ class StoreStampCorrectionRequest extends FormRequest
             foreach ($breakTimes as $index => $break) {
                 $breakStart = $convertToDateTime($break['start'] ?? null);
                 $breakEnd   = $convertToDateTime($break['end'] ?? null);
+
+                // 出勤・退勤が両方未入力なら比較スキップ
+                if (!$clockInTime && !$clockOutTime) continue;
 
                 // 休憩開始が出勤より前
                 if ($breakStart && $clockInTime && $breakStart->lt($clockInTime)) {

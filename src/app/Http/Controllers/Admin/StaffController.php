@@ -3,83 +3,81 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
+use App\Models\Attendance;
+use Carbon\Carbon;
+use Carbon\CarbonPeriod;
 use Illuminate\Http\Request;
 
 class StaffController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function index()
+    // スタッフ一覧（変更なし）
+    public function index(Request $request)
     {
-        //
+        $staff = User::where('role', 'user')
+            ->orderBy('id')
+            ->get();
+
+        return view('admin.staff.index', compact('staff'));
     }
 
-    /**
-     * Show the form for creating a new resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function create()
+    // 指定スタッフの月次勤怠一覧
+    public function show(Request $request, User $staff)
     {
-        //
-    }
+        abort_unless($staff->role === 'user', 404);
 
-    /**
-     * Store a newly created resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
-     */
-    public function store(Request $request)
-    {
-        //
-    }
+        // ?month=YYYY-MM（なければ今月）
+        $monthStr = $request->query('month');
+        $cursor   = $monthStr
+            ? Carbon::createFromFormat('Y-m-d', "{$monthStr}-01")
+            : now();
 
-    /**
-     * Display the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function show($id)
-    {
-        //
-    }
+        $start = $cursor->copy()->startOfMonth();
+        $end   = $cursor->copy()->endOfMonth();
 
-    /**
-     * Show the form for editing the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function edit($id)
-    {
-        //
-    }
+        // 当月の勤怠（休憩含む）を work_date ベースで取得
+        $byDate = Attendance::with('breakTimes')
+            ->where('user_id', $staff->id)
+            ->whereBetween('work_date', [$start->toDateString(), $end->toDateString()])
+            ->orderBy('work_date')
+            ->get()
+            ->keyBy(fn($a) => $a->work_date->toDateString());
 
-    /**
-     * Update the specified resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function update(Request $request, $id)
-    {
-        //
-    }
+        // 行生成
+        $rows = [];
+        foreach (CarbonPeriod::create($start, $end) as $day) {
+            $key = $day->toDateString();
+            $rec = $byDate[$key] ?? null;
 
-    /**
-     * Remove the specified resource from storage.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function destroy($id)
-    {
-        //
+            $breakMin = 0;
+            if ($rec && $rec->relationLoaded('breakTimes')) {
+                $breakMin = $rec->breakTimes->sum(function ($b) {
+                    return ($b->break_start && $b->break_end)
+                        ? $b->break_end->diffInMinutes($b->break_start)
+                        : 0;
+                });
+            }
+
+            $workMin = ($rec && $rec->clock_in && $rec->clock_out)
+                ? max($rec->clock_out->diffInMinutes($rec->clock_in) - $breakMin, 0)
+                : 0;
+
+            $rows[] = [
+                'day'       => $day->copy(),
+                'rec'       => $rec,
+                'break_str' => $breakMin > 0 ? sprintf('%d:%02d', intdiv($breakMin,60), $breakMin%60) : null,
+                'work_str'  => ($rec && $rec->clock_out)
+                    ? sprintf('%d:%02d', intdiv($workMin,60), $workMin%60)
+                    : null,
+            ];
+        }
+
+        $prevMonth = $start->copy()->subMonth()->format('Y-m');
+        $nextMonth = $end->copy()->addMonth()->format('Y-m');
+        $nextDisabled = $cursor->isSameMonth(now());
+
+        return view('admin.staff.show', compact(
+            'staff', 'rows', 'cursor', 'prevMonth', 'nextMonth', 'nextDisabled'
+        ));
     }
 }

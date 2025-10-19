@@ -13,88 +13,86 @@ use Illuminate\Support\Facades\Auth;
 
 class AttendanceController extends Controller
 {
-    // 画面表示
+    // 打刻画面表示
     public function showPunch()
     {
         $user = Auth::user();
-        $now = Carbon::now();
+        $now  = Carbon::now();
+        $today = $now->toDateString();
 
-        // 未退勤の勤怠レコード（＝出勤中）
+        // 未退勤レコード（出勤中）
         $open = Attendance::where('user_id', $user->id)
             ->whereNull('clock_out')
             ->latest('clock_in')
             ->first();
 
-        // 今日すでに出勤レコードがあるか
+        // その日のレコードが既にあるか（work_date基準）
         $todayExists = Attendance::where('user_id', $user->id)
-            ->whereDate('clock_in', $now->toDateString())
+            ->whereDate('work_date', $today)
             ->exists();
 
         // 休憩中
         $break = null;
         if ($open) {
-        $break = BreakTime::where('attendance_id', $open->id)
-            ->whereNull('break_end')
-            ->latest('break_start')
-            ->first();
+            $break = BreakTime::where('attendance_id', $open->id)
+                ->whereNull('break_end')
+                ->latest('break_start')
+                ->first();
         }
 
-        // ラベル判定
+        // ラベル
         $status = '勤務外';
-        if ($break) {
-            $status = '休憩中';
-        } elseif ($open) {
-            $status = '出勤中';
-        } elseif ($todayExists) {
-            $status = '退勤済';
-        }
+        if     ($break)       $status = '休憩中';
+        elseif ($open)        $status = '出勤中';
+        elseif ($todayExists) $status = '退勤済';
 
-        // Blade用のフラグ
+        // Bladeフラグ
         $canClockIn  = !$open && !$todayExists;
         $canClockOut = (bool) $open;
         $canBreakIn  = (bool) $open && !$break;
         $canBreakOut = (bool) $break;
 
-        return view('attendance.punch', compact(
+        return view('user.attendance.punch', compact(
             'now', 'status', 'open', 'canClockIn', 'canClockOut', 'canBreakIn', 'canBreakOut'
         ));
     }
 
-    // 出勤ボタン押下
+    // 出勤
     public function storePunch()
     {
-        $user = Auth::user();
+        $user  = Auth::user();
         $today = now()->toDateString();
 
+        // すでに出勤中？
         $alreadyOpen = Attendance::where('user_id', $user->id)
             ->whereNull('clock_out')
             ->exists();
-
         if ($alreadyOpen) {
             return back()->with('error', 'すでに出勤中です');
         }
 
-        // その日すでに出勤済か
+        // その日のレコードがある？
         $todayExists = Attendance::where('user_id', $user->id)
-            ->whereDate('clock_in', $today)
+            ->whereDate('work_date', $today)
             ->exists();
         if ($todayExists) {
             return back();
         }
 
         Attendance::create([
-            'user_id'  => $user->id,
-            'clock_in' => now(),
+            'user_id'   => $user->id,
+            'work_date' => $today,     // ★ 未勤務日でも一意に持つキー
+            'clock_in'  => now(),
+            'clock_out' => null,
         ]);
 
         return redirect()->route('user.attendance.punch');
     }
 
-    // 退勤ボタン押下
+    // 退勤
     public function clockOut(Attendance $attendance)
     {
-        // 自分のレコードか確認
-        if ($attendance->user_id !== auth()->id()) {
+        if ($attendance->user_id !== Auth::id()) {
             abort(403);
         }
 
@@ -105,7 +103,7 @@ class AttendanceController extends Controller
         return back();
     }
 
-    // 勤怠一覧を表示
+    // 勤怠一覧
     public function index(Request $request)
     {
         $user = Auth::user();
@@ -119,20 +117,21 @@ class AttendanceController extends Controller
         $start = $cursor->copy()->startOfMonth();
         $end   = $cursor->copy()->endOfMonth();
 
-        // 自分の当月勤怠を日付ごとにまとめる
+        // 当月の自分の勤怠を work_date で取得
         $byDate = Attendance::with('breakTimes')
             ->where('user_id', $user->id)
-            ->whereBetween('clock_in', [$start, $end])
-            ->orderBy('clock_in')
+            ->whereBetween('work_date', [$start->toDateString(), $end->toDateString()])
+            ->orderBy('work_date')
             ->get()
-            ->keyBy(fn($attendance) => $attendance->clock_in->toDateString());
+            ->keyBy(fn($a) => $a->work_date->toDateString());
 
         // 月内の全日を行データに整形
         $rows = [];
         foreach (CarbonPeriod::create($start, $end) as $day) {
-            $rec = $byDate[$day->toDateString()] ?? null;
+            $key = $day->toDateString();
+            $rec = $byDate[$key] ?? null;
 
-            // 休憩分
+            // 休憩合計（start/end 両方あるもののみ）
             $breakMin = 0;
             if ($rec && $rec->relationLoaded('breakTimes')) {
                 $breakMin = $rec->breakTimes->sum(function ($b) {
@@ -142,69 +141,112 @@ class AttendanceController extends Controller
                 });
             }
 
-            // 勤務合計（退勤が無ければ0）
+            // 勤務合計（退勤があるときのみ）
             $workMin = ($rec && $rec->clock_in && $rec->clock_out)
                 ? max($rec->clock_out->diffInMinutes($rec->clock_in) - $breakMin, 0)
                 : 0;
 
+            // 表示用
+            $breakStr = $breakMin > 0
+                ? sprintf('%d:%02d', intdiv($breakMin, 60), $breakMin % 60)
+                : null;
+            $workStr  = ($rec && $rec->clock_out)
+                ? sprintf('%d:%02d', intdiv($workMin, 60), $workMin % 60)
+                : null;
+
             $rows[] = [
-                'day'       => $day->copy(),
-                'rec'       => $rec,
-                'break_min' => $breakMin,
-                'work_min'  => $workMin,
+                'day'        => $day->copy(),
+                'rec'        => $rec,
+                'break_min'  => $breakMin,
+                'work_min'   => $workMin,
+                'break_str'  => $breakStr,
+                'work_str'   => $workStr,
             ];
         }
 
-        // 前月・翌月のクエリ値
+        // 前月・翌月
         $prev = $start->copy()->subMonth()->format('Y-m');
         $next = $end->copy()->addMonth()->format('Y-m');
 
-        // 表示中の月が今月なら翌月リンクを無効に
+        // 今月表示中なら翌月リンク無効
         $nextDisabled = $cursor->isSameMonth(now());
 
-        return view('attendance.index', [
-            'rows'   => $rows,
-            'cursor'    => $cursor,
-            'prevMonth' => $prev,
-            'nextMonth' => $next,
+        return view('user.attendance.index', [
+            'rows'         => $rows,
+            'cursor'       => $cursor,
+            'prevMonth'    => $prev,
+            'nextMonth'    => $next,
             'nextDisabled' => $nextDisabled,
         ]);
     }
 
-    public function show(string $date)
+    // 勤怠詳細（ID受け取り）
+    public function show(Attendance $attendance)
     {
-        $user = Auth::user();
-        $day = Carbon::createFromFormat('Y-m-d', $date);
-
-        $attendance = Attendance::with('breakTimes')
-            ->where('user_id', $user->id)
-            ->whereDate('clock_in', $day)
-            ->orderBy('clock_in')
-            ->first();
-
-        if (!$attendance) {
-            return view('attendance.detail', [
-                'date'       => $day,
-                'attendance' => null,
-                'breaks'     => collect(),
-                'isPending'  => false,
-            ]);
+        if ($attendance->user_id !== Auth::id()) {
+            abort(403);
         }
 
-        $breaks = $attendance->breakTimes
-            ->sortBy('break_start')
-            ->values();
+        // 表示用“日付”は work_date 優先、無ければ clock_in 由来
+        $day = $attendance->work_date
+            ? $attendance->work_date->copy()->startOfDay()
+            : ($attendance->clock_in?->copy()->startOfDay());
 
-        $isPending = StampCorrectionRequest::where('user_id', $user->id)
+        if (!$day) {
+            // 念のための保険
+            $day = now()->startOfDay();
+        }
+
+        // 申請（attendance_id を優先、無ければ target_date で補完）
+        $requestRec = StampCorrectionRequest::where('user_id', Auth::id())
             ->where('attendance_id', $attendance->id)
-            ->where('status', 'pending')
-            ->exists();
+            ->latest('created_at')
+            ->first();
 
-        return view('attendance.detail', [
-            'date'       => $day,
-            'attendance' => $attendance,
-            'breaks'     => $breaks,
-            'isPending'  => $isPending,
+        if (!$requestRec) {
+            $requestRec = StampCorrectionRequest::where('user_id', Auth::id())
+                ->whereDate('target_date', $day)
+                ->latest('created_at')
+                ->first();
+        }
+
+        $isPending = $requestRec?->status === 'pending';
+
+        // 出退勤の表示（承認待ちは申請値を優先）
+        $displayClockIn  = $attendance->clock_in;
+        $displayClockOut = $attendance->clock_out;
+        if ($isPending) {
+            if ($requestRec?->requested_clock_in) {
+                $displayClockIn = Carbon::parse($requestRec->requested_clock_in);
+            }
+            if ($requestRec?->requested_clock_out) {
+                $displayClockOut = Carbon::parse($requestRec->requested_clock_out);
+            }
+        }
+
+        // 休憩の表示（承認待ちは申請値を優先）
+        if ($isPending && !empty($requestRec?->requested_breaks)) {
+            $displayBreaks = collect($requestRec->requested_breaks)->map(function ($b) {
+                return (object)[
+                    'break_start' => $b['start'] ? Carbon::parse($b['start']) : null,
+                    'break_end'   => $b['end']   ? Carbon::parse($b['end'])   : null,
+                ];
+            });
+        } else {
+            $displayBreaks = $attendance->breakTimes?->sortBy('break_start')->values() ?? collect();
+        }
+
+        $displayNote = $isPending ? ($requestRec->reason ?? '') : old('note', '');
+
+        return view('user.attendance.show', [
+            'date'            => $day,
+            'attendance'      => $attendance,
+            'isPending'       => $isPending,
+            'request'         => $requestRec,
+            'displayClockIn'  => $displayClockIn,
+            'displayClockOut' => $displayClockOut,
+            'displayBreaks'   => $displayBreaks,
+            'displayNote'     => $displayNote,
         ]);
     }
 }

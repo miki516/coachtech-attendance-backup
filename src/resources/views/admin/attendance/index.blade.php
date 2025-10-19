@@ -29,8 +29,16 @@
                     <td>{{ $r['break'] }}</td>
                     <td>{{ $r['total'] }}</td>
                     <td>
-                        <a
-                            href="{{ route('admin.attendance.show', ['attendance' => $r['user_id'], 'date' => $date->toDateString()]) }}">詳細</a>
+                        @if ($r['attendance_id'])
+                            <a
+                                href="{{ route('admin.attendance.show', [
+                                    'attendance' => $r['attendance_id'],
+                                    'return' => 'list',
+                                    'date' => $date->toDateString(),
+                                ]) }}">詳細</a>
+                        @else
+                            -
+                        @endif
                     </td>
                 </tr>
             @endforeach

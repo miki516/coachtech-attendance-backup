@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\AdminLoginRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -15,7 +16,7 @@ class AdminLoginController extends Controller
     }
 
     // ログイン処理
-    public function login(Request $request)
+    public function login(AdminLoginRequest $request)
     {
         // バリデーション
         $credentials = $request->validate([

@@ -6,11 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 class CreateAttendancesTable extends Migration
 {
-    /**
-     * Run the migrations.
-     *
-     * @return void
-     */
     public function up()
     {
         Schema::create('attendances', function (Blueprint $table) {
@@ -19,19 +14,20 @@ class CreateAttendancesTable extends Migration
             // ユーザーとの紐づけ
             $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
 
-            // 出勤・退勤時刻
-            $table->datetime('clock_in')->nullable();
-            $table->datetime('clock_out')->nullable();
+            // 「その日の勤怠」を一意に特定するための日付キー（勤務が無くても必ず持てる列）
+            $table->date('work_date')->nullable();
+
+            // 出勤・退勤時刻（無い日もあるので nullable）
+            $table->dateTime('clock_in')->nullable();
+            $table->dateTime('clock_out')->nullable();
 
             $table->timestamps();
+
+            // 同一ユーザー×同一日で1レコードにするためのユニーク制約
+            $table->unique(['user_id', 'work_date']);
         });
     }
 
-    /**
-     * Reverse the migrations.
-     *
-     * @return void
-     */
     public function down()
     {
         Schema::dropIfExists('attendances');

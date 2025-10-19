@@ -1,11 +1,12 @@
 <?php
 
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
-use App\Http\Controllers\Auth\LoginController;
-use App\Http\Controllers\Auth\RegisterController;
+use App\Models\Attendance;
+use App\Models\User;
 use App\Http\Controllers\User\AttendanceController as UserAttendanceController;
 use App\Http\Controllers\User\BreakController;
 use App\Http\Controllers\User\StampCorrectionRequestController as UserRequestController;
@@ -13,18 +14,6 @@ use App\Http\Controllers\Admin\AdminLoginController;
 use App\Http\Controllers\Admin\AttendanceController as AdminAttendanceController;
 use App\Http\Controllers\Admin\StaffController;
 use App\Http\Controllers\Admin\StampCorrectionRequestController as AdminRequestController;
-
-// ==============================
-// 会員登録（FormRequest対応版）
-// ==============================
-Route::post('/register', [RegisterController::class, 'store'])->name('register');
-
-// ==============================
-// ログイン・ログアウト
-// ==============================
-Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
-Route::post('/login', [LoginController::class, 'login']);
-Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
 // ==============================
 // メール認証関連
@@ -35,7 +24,7 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {
         $request->fulfill();
-        return redirect()->route('login');
+        return redirect()->intended(route('user.attendance.punch'));
     })->middleware('signed')->name('verification.verify');
 
     Route::post('/email/verification-notification', function (Request $request) {
@@ -68,13 +57,25 @@ Route::post('/attendance/{attendance}/break-out', [BreakController::class, 'clos
     ->name('user.attendance.break.out');
 
 // 勤怠一覧
-Route::get('/attendance/list', [UserAttendanceController::class, 'index'])
+Route::get('/attendance/list/{date?}', [UserAttendanceController::class, 'index'])
     ->name('user.attendance.index');
 
 // 勤怠詳細
-Route::get('/attendance/detail/{date}', [UserAttendanceController::class, 'show'])
-    ->where('date', '^\d{4}-\d{2}-\d{2}$')
+Route::get('/attendance/detail/{attendance}', [UserAttendanceController::class, 'show'])
+    ->whereNumber('date', '^\d{4}-\d{2}-\d{2}$')
     ->name('user.attendance.show');
+
+// 勤務なし日でも入れる日付→IDブリッジ
+Route::get('/attendance/detail/by-date/{date}', function (string $date) {
+    $day = \Illuminate\Support\Carbon::parse($date)->toDateString();
+    $att = \App\Models\Attendance::firstOrCreate(
+        ['user_id' => \Illuminate\Support\Facades\Auth::id(), 'work_date' => $day],
+        ['clock_in' => null, 'clock_out' => null]
+    );
+    return redirect()->route('user.attendance.show', ['attendance' => $att->id]);
+})->where('date', '^\d{4}-\d{2}-\d{2}$')
+  ->middleware(['auth','verified'])
+  ->name('user.attendance.show.by_date');
 
 // 修正申請作成
 Route::post('/stamp_correction_request', [UserRequestController::class, 'store'])
@@ -109,6 +110,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
         ->whereNumber('attendance')
         ->name('admin.attendance.show');
 
+    // 勤怠修正
+    Route::patch('/attendance/{attendance}', [AdminAttendanceController::class, 'update'])
+        ->whereNumber('attendance')
+        ->name('admin.attendance.update');
+
     // スタッフ一覧
     Route::get('/staff/list', [StaffController::class, 'index'])
         ->name('admin.staff.index');
@@ -117,6 +123,23 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
     Route::get('/attendance/staff/{staff}', [StaffController::class, 'show'])
         ->whereNumber('staff')
         ->name('admin.staff.show');
+
+    // 追加：未勤務日でも詳細を開ける「日付→IDブリッジ」（管理者用）
+    Route::get('/attendance/detail/by-date/{staff}/{date}', function (User $staff, string $date) {
+        // user権限のスタッフ以外は404（任意）
+        abort_unless($staff->role === 'user', 404);
+
+        $day = Carbon::parse($date)->toDateString();
+
+        $att = Attendance::firstOrCreate(
+            ['user_id' => $staff->id, 'work_date' => $day],
+            ['clock_in' => null, 'clock_out' => null]
+        );
+
+        return redirect()->route('admin.attendance.show', ['attendance' => $att->id]);
+    })->whereNumber('staff')
+    ->where('date', '^\d{4}-\d{2}-\d{2}$')
+    ->name('admin.attendance.show.by_date');
 
     // 修正申請承認
     Route::get('/stamp_correction_request/approve/{attendance_correct_request_id}',

@@ -18,7 +18,7 @@
 <body class="site">
     <header class="site-header">
         <div class="site-header-logo">
-            <a href="{{ route('user.attendance.clockin') }}">
+            <a href="{{ route('user.attendance.punch') }}">
                 <img src="{{ asset('images/logo.svg') }}" alt="COACHTECH">
             </a>
         </div>

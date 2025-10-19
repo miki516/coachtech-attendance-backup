@@ -2,9 +2,11 @@
 
 namespace App\Providers;
 
+use App\Actions\Fortify\CreateNewUser;
+use App\Models\User;
+use App\Http\Requests\LoginRequest;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
-use App\Http\Requests\LoginRequest;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -31,6 +33,8 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::registerView(fn () => view('auth.register'));
         Fortify::loginView(fn () => view('auth.login'));
 
+        Fortify::createUsersUsing(CreateNewUser::class);
+
         Fortify::authenticateUsing(function (Request $request) {
             $form = app(LoginRequest::class);
 
@@ -40,9 +44,10 @@ class FortifyServiceProvider extends ServiceProvider
                 $form->messages()
             );
 
-            $user = \App\Models\User::where('email', $request->email)->first();
+            $user = User::where('email', $request->email)->first();
 
-            if ($user && Hash::check($request->password, $user->password)) {
+            // 一般ログイン(/login)は "user" だけ通す
+            if ($user && $user->role === 'user' && Hash::check($request->password, $user->password)) {
                 return $user;
             }
 
@@ -63,7 +68,7 @@ class FortifyServiceProvider extends ServiceProvider
                     $role = $request->user()?->role;
                     return $role === 'admin'
                         ? redirect()->intended(route('admin.attendance.index'))
-                        : redirect()->intended(route('user.attendance.clockin'));
+                        : redirect()->intended(route('user.attendance.punch'));
                 }
             };
         });
@@ -73,10 +78,7 @@ class FortifyServiceProvider extends ServiceProvider
             return new class implements LogoutResponse {
                 public function toResponse($request)
                 {
-                    $role = $request->user()?->role;
-                    return $role === 'admin'
-                        ? redirect()->route('admin.login')
-                        : redirect()->route('login');
+                    return redirect()->route('login');
                 }
             };
         });

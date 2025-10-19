@@ -12,8 +12,10 @@ class StampCorrectionRequest extends Model
     protected $fillable = [
         'user_id',
         'attendance_id',
+        'target_date',
         'requested_clock_in',
         'requested_clock_out',
+        'requested_breaks',
         'reason',
         'status',
         'approved_by',
@@ -21,8 +23,10 @@ class StampCorrectionRequest extends Model
     ];
 
     protected $casts = [
+        'target_date'         => 'date',
         'requested_clock_in'  => 'datetime',
         'requested_clock_out' => 'datetime',
+        'requested_breaks'    => 'array',
         'approved_at'         => 'datetime',
     ];
 

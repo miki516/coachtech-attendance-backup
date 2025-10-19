@@ -9,18 +9,21 @@
 
     <form action="{{ route('user.request.store') }}" method="POST">
         @csrf
+        @if ($isPending)
+            <fieldset disabled>
+        @endif
 
-        {{-- 対象特定 --}}
-        <input type="hidden" name="date" value="{{ $date->toDateString() }}">
-        <input type="hidden" name="attendance_id" value="{{ $attendance?->id }}">
+        {{-- 対象特定（work_date 優先） --}}
+        <input type="hidden" name="date" value="{{ ($attendance->work_date ?? $date)->toDateString() }}">
+        <input type="hidden" name="attendance_id" value="{{ $attendance->id }}">
 
         {{-- 名前 --}}
         <div>
             <label>名前</label>
-            <div>{{ $attendance?->user?->name ?? '—' }}</div>
+            <div>{{ Auth::user()->name }}</div>
         </div>
 
-        {{-- 日付 --}}
+        {{-- 日付表示 --}}
         <div>
             <label>日付</label>
             <div>{{ $date->format('Y年 n月 j日') }}</div>
@@ -30,11 +33,11 @@
         <div>
             <label>出勤・退勤</label>
             <div>
-                <input type="time" name="clock_in" value="{{ $attendance?->clock_in?->format('H:i') ?? '' }}"
-                    @if ($isPending) disabled @endif>
+                <input type="time" name="clock_in" value="{{ $displayClockIn?->format('H:i') ?? '' }}"
+                    @disabled($isPending)>
                 〜
-                <input type="time" name="clock_out" value="{{ $attendance?->clock_out?->format('H:i') ?? '' }}"
-                    @if ($isPending) disabled @endif>
+                <input type="time" name="clock_out" value="{{ $displayClockOut?->format('H:i') ?? '' }}"
+                    @disabled($isPending)>
             </div>
             @error('clock_in')
                 <div class="form-error">{{ $message }}</div>
@@ -45,19 +48,17 @@
         </div>
 
         {{-- 休憩（既存回数分＋空1行） --}}
-        @php $nextBreakIndex = $breaks->count(); @endphp
+        @php $nextBreakIndex = $displayBreaks->count(); @endphp
 
-        @foreach ($breaks as $index => $break)
+        @foreach ($displayBreaks as $index => $break)
             <div>
                 <label>休憩{{ $index + 1 }}</label>
                 <div>
                     <input type="time" name="breaks[{{ $index }}][start]"
-                        value="{{ $break->break_start?->format('H:i') ?? '' }}"
-                        @if ($isPending) disabled @endif>
+                        value="{{ $break->break_start?->format('H:i') ?? '' }}" @disabled($isPending)>
                     〜
                     <input type="time" name="breaks[{{ $index }}][end]"
-                        value="{{ $break->break_end?->format('H:i') ?? '' }}"
-                        @if ($isPending) disabled @endif>
+                        value="{{ $break->break_end?->format('H:i') ?? '' }}" @disabled($isPending)>
                 </div>
             </div>
         @endforeach
@@ -67,10 +68,10 @@
             <label>休憩{{ $nextBreakIndex + 1 }}</label>
             <div>
                 <input type="time" name="breaks[{{ $nextBreakIndex }}][start]" value=""
-                    @if ($isPending) disabled @endif>
+                    @disabled($isPending)>
                 〜
                 <input type="time" name="breaks[{{ $nextBreakIndex }}][end]" value=""
-                    @if ($isPending) disabled @endif>
+                    @disabled($isPending)>
             </div>
         </div>
 
@@ -84,13 +85,13 @@
         {{-- 備考 --}}
         <div>
             <label>備考</label>
-            <textarea name="note" rows="3" @if ($isPending) disabled @endif>{{ old('note') }}</textarea>
+            <textarea name="note" rows="3" @disabled($isPending)>{{ $displayNote }}</textarea>
             @error('note')
                 <div class="form-error">{{ $message }}</div>
             @enderror
         </div>
 
-        {{-- 修正ボタン or メッセージ --}}
+        {{-- 送信 or ロック表示 --}}
         <div class="form-button">
             @if ($isPending)
                 <div class="form-error" role="alert">承認待ちのため修正はできません。</div>
@@ -98,5 +99,9 @@
                 <button type="submit">修正</button>
             @endif
         </div>
+
+        @if ($isPending)
+            </fieldset>
+        @endif
     </form>
 @endsection

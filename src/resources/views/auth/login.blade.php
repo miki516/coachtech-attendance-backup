@@ -8,7 +8,7 @@
     <div class="login-page">
         <h1 class="page-title">ログイン</h1>
         <div class="form-content">
-            <form class="form" method="POST" action="{{ route('login') }}" autocomplete="on">
+            <form class="form" method="POST" action="{{ route('login') }}" novalidate autocomplete="on">
                 <div class="form-body">
                     @csrf
                     <!-- メールアドレス -->

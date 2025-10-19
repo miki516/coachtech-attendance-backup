@@ -32,10 +32,12 @@ class AdminLoginRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'email.required' => 'メールアドレスを入力してください',
-            'email.email' => 'ログイン情報が登録されていません',
+            // 未入力
+            'email.required'    => 'メールアドレスを入力してください',
             'password.required' => 'パスワードを入力してください',
-            'email' => 'ログイン情報が登録されていません',
+
+            // 形式不正も含めて汎用エラーに寄せる
+            'email.email'       => 'ログイン情報が登録されていません',
         ];
     }
 }

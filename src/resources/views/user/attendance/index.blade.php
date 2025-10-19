@@ -28,23 +28,30 @@
             <tbody>
                 @foreach ($rows as $r)
                     @php
-                        if ($r['rec']) {
-                            $bh = intdiv($r['break_min'], 60);
-                            $bm = $r['break_min'] % 60;
-                            $wh = intdiv($r['work_min'], 60);
-                            $wm = $r['work_min'] % 60;
-                        } else {
-                            $bh = $bm = $wh = $wm = null;
-                        }
+                        // 表示用フラグ（既存ロジック踏襲）
+                        $showBreak = $r['rec'] && $r['break_min'] > 0;
+                        $showWork = $r['rec'] && $r['rec']->clock_out !== null;
                     @endphp
                     <tr>
                         <td>{{ $r['day']->isoFormat('MM/DD(ddd)') }}</td>
                         <td>{{ $r['rec']?->clock_in?->format('H:i') ?? '' }}</td>
                         <td>{{ $r['rec']?->clock_out?->format('H:i') ?? '' }}</td>
-                        <td>{{ $bh !== null ? sprintf('%d:%02d', $bh, $bm) : '' }}</td>
-                        <td>{{ $wh !== null ? sprintf('%d:%02d', $wh, $wm) : '' }}</td>
+                        <td>{{ $r['break_str'] ?? '' }}</td>
+                        <td>{{ $r['work_str'] ?? '' }}</td>
                         <td>
-                            <a href="{{ route('user.attendance.show', ['date' => $r['day']->toDateString()]) }}">詳細</a>
+                            @if ($r['rec'])
+                                {{-- 勤務あり：ID で詳細へ --}}
+                                <a
+                                    href="{{ route('user.attendance.show', [
+                                        'attendance' => $r['rec']->id,
+                                    ]) }}">詳細</a>
+                            @else
+                                {{-- 勤務なし：日付入口（入った瞬間に空レコード発行→IDにリダイレクト） --}}
+                                <a
+                                    href="{{ route('user.attendance.show.by_date', [
+                                        'date' => $r['day']->toDateString(),
+                                    ]) }}">詳細</a>
+                            @endif
                         </td>
                     </tr>
                 @endforeach

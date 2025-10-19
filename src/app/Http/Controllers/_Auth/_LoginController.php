@@ -17,11 +17,13 @@ class LoginController extends Controller
     {
         $credentials = $request->only('email', 'password');
 
-        if (Auth::attempt($credentials)) {
-            $request->session()->regenerate();
+        // 一般ユーザーだけ通す
+        if (Auth::attempt(array_merge($credentials, ['role' => 'user']))) {
+            $request->session()->regenerate(); // セッション固定攻撃対策
             return redirect()->intended('/attendance');
         }
 
+        // 失敗時
         return back()->withErrors([
             'email' => 'ログイン情報が登録されていません',
         ])->onlyInput('email');

@@ -25,6 +25,9 @@ class LoginRequest extends FormRequest
             // 未入力
             'email.required'    => 'メールアドレスを入力してください',
             'password.required' => 'パスワードを入力してください',
+
+            // 形式不正も含めて汎用エラーに寄せる
+            'email.email'       => 'ログイン情報が登録されていません',
         ];
     }
 }

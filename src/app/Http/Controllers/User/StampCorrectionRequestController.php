@@ -18,44 +18,45 @@ class StampCorrectionRequestController extends Controller
         $validated = $request->validated(); // バリデーション済みデータ
         $user = Auth::user();
 
-        // 勤怠データの取得
-        $attendance = Attendance::where('user_id', $user->id)
-            ->find($validated['attendance_id']);
-
-        if (!$attendance) {
-            abort(404, '勤怠データが見つかりません');
+        // 勤怠データ（あれば取得）
+        $attendance = null;
+        if (!empty($validated['attendance_id'])) {
+            $attendance = Attendance::where('user_id', $user->id)
+            ->where('id', $validated['attendance_id'])
+            ->first();
         }
 
-        // 時刻（例：08:30）をDateTime形式に変換
-        $convertToDateTime = function (?string $timeString, Carbon $baseDate) {
-            if (!$timeString) return null;
-            [$hour, $minute] = explode(':', $timeString);
-            return $baseDate->copy()->setTime((int)$hour, (int)$minute)->toDateTimeString();
+        // 時刻→DateTime文字列
+        $toDateTime = function (?string $time, Carbon $baseDate) {
+            if (!$time) return null;
+            [$h, $m] = explode(':', $time);
+            return $baseDate->copy()->setTime((int)$h, (int)$m)->toDateTimeString();
         };
 
-        $baseDate = Carbon::parse($attendance->clock_in ?? now());
+        $baseDate = Carbon::parse($validated['date']);
 
-        // 休憩時間の変換
-        $formattedBreaks = [];
-        foreach ($validated['breaks'] ?? [] as $break) {
-            $formattedBreaks[] = [
-                'start' => $convertToDateTime($break['start'] ?? null, $baseDate),
-                'end'   => $convertToDateTime($break['end'] ?? null, $baseDate),
+        // 休憩の申請値をJSON用に整形
+        $requestedBreaks = [];
+        foreach ($validated['breaks'] ?? [] as $b) {
+            $requestedBreaks[] = [
+                'start' => $toDateTime($b['start'] ?? null, $baseDate),
+                'end'   => $toDateTime($b['end']   ?? null, $baseDate),
             ];
         }
 
         // 修正申請を登録
         StampCorrectionRequest::create([
             'user_id'             => $user->id,
-            'attendance_id'       => $attendance->id,
-            'requested_clock_in'  => $convertToDateTime($validated['clock_in'] ?? null, $baseDate),
-            'requested_clock_out' => $convertToDateTime($validated['clock_out'] ?? null, $baseDate),
+            'attendance_id'       => $attendance?->id,
+            'target_date'         => $baseDate->toDateString(),
+            'requested_clock_in'  => $toDateTime($validated['clock_in'] ?? null, $baseDate),
+            'requested_clock_out' => $toDateTime($validated['clock_out'] ?? null, $baseDate),
+            'requested_breaks'    => $requestedBreaks,
             'reason'              => $validated['note'], // フォームの「備考」欄
             'status'              => 'pending', // 初期状態：承認待ち
         ]);
 
-        return redirect()->route('request.list')
-            ->with('status', '修正申請を送信しました（承認待ち）');
+        return redirect()->route('request.list');
     }
 
     // 申請一覧
@@ -69,14 +70,20 @@ class StampCorrectionRequestController extends Controller
             ->where('user_id', $user->id)
             ->latest('created_at')
             ->get()
-            ->map(function ($requestRecord) {
-                // 勤怠データの日付を取得
-                $targetDate = $requestRecord->attendance?->clock_in?->format('Y-m-d');
+            ->map(function ($r) {
+                // 対象日を取得
+                $source = $r->target_date
+                    ?: ($r->attendance?->clock_in);   // 勤怠に紐づく場合の保険
 
-                // 表示用の仮プロパティを追加
-                $requestRecord->target_date = $targetDate;
+                $date = $source ? Carbon::parse($source) : null;
 
-                return $requestRecord;
+                // 画面表示用（Carbon）
+                $r->display_date = $date;
+
+                // リンク用（YYYY-MM-DD 文字列）
+                $r->link_date = $date?->format('Y-m-d');
+
+                return $r;
             });
 
         // 状態ごとに分類
@@ -84,7 +91,7 @@ class StampCorrectionRequestController extends Controller
         $approvedRequests = $allRequests->where('status', 'approved');  // 承認済み
         $rejectedRequests = $allRequests->where('status', 'rejected');  // 却下
 
-        return view('stamp_correction_request.index', [
+        return view('user.stamp_correction_request.index', [
             'requests' => $allRequests,
             'pending'  => $pendingRequests,
             'approved' => $approvedRequests,
