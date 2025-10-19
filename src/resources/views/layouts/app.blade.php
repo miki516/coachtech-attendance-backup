@@ -18,9 +18,20 @@
 <body class="site">
     <header class="site-header">
         <div class="site-header-logo">
-            <a href="{{ route('user.attendance.punch') }}">
+            @auth
+                @if (auth()->user()->role === 'admin')
+                    <a href="{{ route('admin.attendance.index') }}">
+                    @else
+                        <a href="{{ route('user.attendance.punch') }}">
+                @endif
                 <img src="{{ asset('images/logo.svg') }}" alt="COACHTECH">
-            </a>
+                </a>
+            @else
+                {{-- 未ログイン時の遷移先（ログイン画面など）。無ければ "/" でもOK --}}
+                <a href="{{ route('admin.login') }}">
+                    <img src="{{ asset('images/logo.svg') }}" alt="COACHTECH">
+                </a>
+            @endauth
         </div>
 
         <nav class="site-header-nav">

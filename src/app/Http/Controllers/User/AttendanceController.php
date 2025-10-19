@@ -187,22 +187,24 @@ class AttendanceController extends Controller
             abort(403);
         }
 
-        // 表示用“日付”は work_date 優先、無ければ clock_in 由来
-        $day = $attendance->work_date
-            ? $attendance->work_date->copy()->startOfDay()
-            : ($attendance->clock_in?->copy()->startOfDay());
-
-        if (!$day) {
-            // 念のための保険
-            $day = now()->startOfDay();
-        }
-
-        // 申請（attendance_id を優先、無ければ target_date で補完）
+        // attendance_id で申請を取得
         $requestRec = StampCorrectionRequest::where('user_id', Auth::id())
             ->where('attendance_id', $attendance->id)
             ->latest('created_at')
             ->first();
 
+        // 対象日の決定順：work_date → 申請の target_date → clock_in → now()
+        if ($attendance->work_date) {
+            $day = $attendance->work_date->copy()->startOfDay();
+        } elseif ($requestRec?->target_date) {
+            $day = Carbon::parse($requestRec->target_date)->startOfDay();
+        } elseif ($attendance->clock_in) {
+            $day = $attendance->clock_in->copy()->startOfDay();
+        } else {
+            $day = now()->startOfDay(); // 最後の保険
+        }
+
+        // 申請がまだ無い場合の互換取得（対象日で探す）
         if (!$requestRec) {
             $requestRec = StampCorrectionRequest::where('user_id', Auth::id())
                 ->whereDate('target_date', $day)
@@ -246,7 +248,7 @@ class AttendanceController extends Controller
             'displayClockIn'  => $displayClockIn,
             'displayClockOut' => $displayClockOut,
             'displayBreaks'   => $displayBreaks,
-            'displayNote'     => $displayNote,
+            'displayNote'     => $isPending ? ($requestRec->reason ?? '') : old('note', ''),
         ]);
     }
 }

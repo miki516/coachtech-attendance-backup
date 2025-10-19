@@ -15,7 +15,7 @@ class CreateAttendancesTable extends Migration
             $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
 
             // 「その日の勤怠」を一意に特定するための日付キー（勤務が無くても必ず持てる列）
-            $table->date('work_date')->nullable();
+            $table->date('work_date');
 
             // 出勤・退勤時刻（無い日もあるので nullable）
             $table->dateTime('clock_in')->nullable();

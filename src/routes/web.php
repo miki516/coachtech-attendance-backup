@@ -141,11 +141,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
     ->where('date', '^\d{4}-\d{2}-\d{2}$')
     ->name('admin.attendance.show.by_date');
 
-    // 修正申請承認
-    Route::get('/stamp_correction_request/approve/{attendance_correct_request_id}',
-        [AdminRequestController::class, 'approval'])
-        ->whereNumber('attendance_correct_request_id')
-        ->name('admin.request.approval');
+    // 管理者申請一覧・承認
+        Route::get('/stamp_correction_request/list', [AdminRequestController::class, 'index'])->name('admin.request.index');
+        Route::get('/stamp_correction_request/approve/{attendance_correct_request_id}', [AdminRequestController::class, 'show'])->name('admin.request.show');
+        Route::post('/stamp_correction_request/approve/{attendance_correct_request_id}', [AdminRequestController::class, 'approve'])->name('admin.request.approve');
 });
 
 // =====================================

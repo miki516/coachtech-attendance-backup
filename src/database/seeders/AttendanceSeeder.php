@@ -6,17 +6,22 @@ use Illuminate\Database\Seeder;
 use App\Models\User;
 use App\Models\Attendance;
 use App\Models\BreakTime;
+use Illuminate\Support\Carbon;
 
 class AttendanceSeeder extends Seeder
 {
     public function run(): void
     {
-        // 一般ユーザーを取得
+        // 一般ユーザーを1人取得（存在しない場合は早期終了）
         $user = User::where('role', 'user')->first();
+        if (!$user) {
+            $this->command?->warn('No user with role=user found. Skipping AttendanceSeeder.');
+            return;
+        }
 
         // 今月・先月・先々月の3か月分の勤怠データを作成
         for ($m = 0; $m < 3; $m++) {
-            $month = now()->startOfMonth()->subMonths($m);
+            $month = Carbon::now()->startOfMonth()->subMonths($m);
 
             // 10日分
             for ($i = 0; $i < 10; $i++) {
@@ -26,9 +31,10 @@ class AttendanceSeeder extends Seeder
                 $clockIn  = $date->copy()->setTime(9, 0);
                 $clockOut = $date->copy()->setTime(18, 0);
 
-                // 勤怠データ作成
+                // ★ 勤怠データ作成（work_date を必ずセット）
                 $attendance = Attendance::create([
                     'user_id'   => $user->id,
+                    'work_date' => $date->toDateString(),   // ここが必須
                     'clock_in'  => $clockIn,
                     'clock_out' => $clockOut,
                 ]);

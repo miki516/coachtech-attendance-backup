@@ -12,6 +12,7 @@ class Attendance extends Model
 
     protected $fillable = [
         'user_id',
+        'work_date',
         'clock_in',
         'clock_out',
     ];
@@ -22,19 +23,37 @@ class Attendance extends Model
         'clock_out' => 'datetime',
     ];
 
-    public function scopeForMonth($q, Carbon $start, Carbon $end) {
-        return $q->whereBetween('clock_in', [$start->startOfDay(), $end->endOfDay()]);
+    // 保険：clock_in があり work_date が未設定なら自動補完
+    protected static function booted()
+    {
+        static::creating(function (self $m) {
+            if (!$m->work_date && $m->clock_in) {
+                $m->work_date = $m->clock_in->toDateString();
+            }
+        });
     }
 
-    public function user() {
+    // 月範囲の抽出は work_date ベースに（NULLの clock_in に依存しない）
+    public function scopeForMonth($q, Carbon $start, Carbon $end)
+    {
+        return $q->whereBetween('work_date', [
+            $start->toDateString(),
+            $end->toDateString(),
+        ]);
+    }
+
+    public function user()
+    {
         return $this->belongsTo(User::class, 'user_id');
     }
 
-    public function breakTimes() {
+    public function breakTimes()
+    {
         return $this->hasMany(BreakTime::class, 'attendance_id');
     }
 
-    public function stampCorrectionRequests() {
+    public function stampCorrectionRequests()
+    {
         return $this->hasMany(StampCorrectionRequest::class, 'attendance_id');
     }
 }

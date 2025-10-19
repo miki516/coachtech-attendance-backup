@@ -29,16 +29,19 @@
                     <td>{{ $r['break'] }}</td>
                     <td>{{ $r['total'] }}</td>
                     <td>
-                        @if ($r['attendance_id'])
-                            <a
-                                href="{{ route('admin.attendance.show', [
+                        {{-- 勤怠があればID詳細、無ければ by-date ブリッジで空レコード作成→ID詳細へ --}}
+                        <a
+                            href="{{ $r['attendance_id']
+                                ? route('admin.attendance.show', [
                                     'attendance' => $r['attendance_id'],
+                                    // （任意）戻り先ヒント
                                     'return' => 'list',
                                     'date' => $date->toDateString(),
+                                ])
+                                : route('admin.attendance.show.by_date', [
+                                    'staff' => $r['user_id'],
+                                    'date' => $date->toDateString(),
                                 ]) }}">詳細</a>
-                        @else
-                            -
-                        @endif
                     </td>
                 </tr>
             @endforeach

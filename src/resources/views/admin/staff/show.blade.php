@@ -39,10 +39,11 @@
                                 <a href="{{ route('admin.attendance.show', ['attendance' => $r['rec']->id]) }}">詳細</a>
                             @else
                                 {{-- 勤務なし：管理者用 by-date 入口（空レコード作成→ID詳細へ） --}}
-                                <a href="{{ route('admin.attendance.show.by_date', [
-                                    'staff' => $staff->id,
-                                    'date'  => $r['day']->toDateString(),
-                                ]) }}">詳細</a>
+                                <a
+                                    href="{{ route('admin.attendance.show.by_date', [
+                                        'staff' => $staff->id,
+                                        'date' => $r['day']->toDateString(),
+                                    ]) }}">詳細</a>
                             @endif
                         </td>
                     </tr>

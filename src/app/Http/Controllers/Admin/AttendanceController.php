@@ -23,7 +23,7 @@ class AttendanceController extends Controller
 
         // 当日の勤怠を取得（ユーザー＆休憩を事前ロード）
         $attendances = Attendance::with(['user', 'breakTimes'])
-            ->whereDate('clock_in', $date)
+            ->whereDate('work_date', $date)
             ->orderBy('user_id')
             ->get();
 
@@ -80,9 +80,21 @@ class AttendanceController extends Controller
     // 勤怠詳細（表示だけなのでバリデ不要）
     public function show(Attendance $attendance)
     {
-        $date = $attendance->clock_in
-            ? Carbon::parse($attendance->clock_in)
-            : Carbon::today();
+        // attendance_id で申請を取得
+        $requestRec = StampCorrectionRequest::where('attendance_id', $attendance->id)
+            ->latest('created_at')
+            ->first();
+
+        // 対象日の決定順：work_date → 申請 target_date → clock_in → now()
+        if ($attendance->work_date) {
+            $date = $attendance->work_date->copy()->startOfDay();
+        } elseif ($requestRec?->target_date) {
+            $date = Carbon::parse($requestRec->target_date)->startOfDay();
+        } elseif ($attendance->clock_in) {
+            $date = $attendance->clock_in->copy()->startOfDay();
+        } else {
+            $date = now()->startOfDay(); // 最後の保険
+        }
 
         $breaks = $attendance->breakTimes
             ? $attendance->breakTimes->sortBy('break_start')->values()
