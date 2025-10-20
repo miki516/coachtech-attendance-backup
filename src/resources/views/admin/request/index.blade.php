@@ -6,8 +6,8 @@
 
         {{-- タブ切り替え --}}
         <div style="display: flex; gap: 16px; margin-bottom: 16px;">
-            <button onclick="showTab('pending')" class="tab-btn">承認待ち</button>
-            <button onclick="showTab('approved')" class="tab-btn">承認済み</button>
+            <button onclick="showTab('pending')" id="btn-pending" class="tab-btn">承認待ち</button>
+            <button onclick="showTab('approved')" id="btn-approved" class="tab-btn">承認済み</button>
         </div>
 
         {{-- 承認待ち --}}
@@ -51,6 +51,7 @@
                         <th>対象日</th>
                         <th>備考</th>
                         <th>承認日時</th>
+                        <th>操作</th> {{-- ← 追加 --}}
                     </tr>
                 </thead>
                 <tbody>
@@ -60,10 +61,11 @@
                             <td>{{ $r->display_date?->format('Y/m/d') ?? '—' }}</td>
                             <td>{{ $r->reason }}</td>
                             <td>{{ $r->approved_at?->format('Y/m/d H:i') }}</td>
+                            <td><a href="{{ route('admin.request.show', $r->id) }}">詳細</a></td> {{-- ← 追加 --}}
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="4">承認済みの申請はありません。</td>
+                            <td colspan="5">承認済みの申請はありません。</td> {{-- colspanを5に変更 --}}
                         </tr>
                     @endforelse
                 </tbody>
@@ -73,8 +75,20 @@
 
     <script>
         function showTab(tab) {
+            // 全タブ非表示
             document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+            // 全ボタンのアクティブ解除
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+
+            // 指定タブ表示
             document.getElementById('tab-' + tab).style.display = 'block';
+            // ボタンをアクティブに
+            document.getElementById('btn-' + tab).classList.add('active');
         }
+
+        // 初期表示：承認待ちを表示
+        document.addEventListener('DOMContentLoaded', function() {
+            showTab('pending');
+        });
     </script>
 @endsection

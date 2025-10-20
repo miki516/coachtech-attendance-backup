@@ -96,7 +96,11 @@
 
         {{-- 修正ボタン --}}
         <div class="form-button">
-            <button type="submit">修正</button>
+            @if ($isPending)
+                <div class="form-error" role="alert">承認待ちのため修正はできません。</div>
+            @else
+                <button type="submit">修正</button>
+            @endif
         </div>
     </form>
 @endsection

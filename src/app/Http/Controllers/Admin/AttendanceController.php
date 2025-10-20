@@ -9,8 +9,6 @@ use App\Models\StampCorrectionRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 
 class AttendanceController extends Controller
 {
@@ -21,13 +19,13 @@ class AttendanceController extends Controller
             ? Carbon::parse($request->input('date'))
             : Carbon::today();
 
-        // 当日の勤怠を取得（ユーザー＆休憩を事前ロード）
+        // 当日の勤怠（ユーザー＆休憩を事前ロード）
         $attendances = Attendance::with(['user', 'breakTimes'])
             ->whereDate('work_date', $date)
             ->orderBy('user_id')
             ->get();
 
-        // 全ユーザー取得（一般ユーザー）
+        // 全ユーザー（一般ユーザー）
         $users = User::where('role', 'user')->get();
 
         // 表示用に整形
@@ -65,7 +63,7 @@ class AttendanceController extends Controller
             ];
         });
 
-        // 前日・翌日ボタン用の日付
+        // 前日・翌日
         $prevDate = $date->copy()->subDay()->toDateString();
         $nextDate = $date->copy()->addDay()->toDateString();
 
@@ -77,15 +75,17 @@ class AttendanceController extends Controller
         ]);
     }
 
-    // 勤怠詳細（表示だけなのでバリデ不要）
+    // 勤怠詳細
     public function show(Attendance $attendance)
     {
-        // attendance_id で申請を取得
+        // attendance_id で申請を取得（対象日の補完用）
         $requestRec = StampCorrectionRequest::where('attendance_id', $attendance->id)
             ->latest('created_at')
             ->first();
 
-        // 対象日の決定順：work_date → 申請 target_date → clock_in → now()
+        $isPending = $requestRec && $requestRec->status === 'pending';
+
+        // 対象日の決定：work_date → 申請 target_date → clock_in → now()
         if ($attendance->work_date) {
             $date = $attendance->work_date->copy()->startOfDay();
         } elseif ($requestRec?->target_date) {
@@ -93,25 +93,26 @@ class AttendanceController extends Controller
         } elseif ($attendance->clock_in) {
             $date = $attendance->clock_in->copy()->startOfDay();
         } else {
-            $date = now()->startOfDay(); // 最後の保険
+            $date = now()->startOfDay();
         }
 
         $breaks = $attendance->breakTimes
             ? $attendance->breakTimes->sortBy('break_start')->values()
             : collect();
 
-        return view('admin.attendance.show', [
-            'attendance' => $attendance,
-            'breaks'     => $breaks,
-            'date'       => $date,
-        ]);
+        return view('admin.attendance.show', compact(
+            'attendance', 'breaks', 'date', 'isPending'
+        ));
     }
 
-    // 勤怠修正（管理者修正は必ず備考必須にしたい → 専用FormRequest）
+    // 勤怠修正
     public function update(UpdateAttendanceRequest $request, Attendance $attendance)
     {
-        $admin = Auth::user();
-        $date  = Carbon::parse($request->input('date', $attendance->clock_in?->toDateString() ?? now()->toDateString()));
+        $date = Carbon::parse(
+            $request->input('date', $attendance->work_date?->toDateString()
+                ?? $attendance->clock_in?->toDateString()
+                ?? now()->toDateString())
+        );
 
         $toDT = function (?string $hm) use ($date) {
             if (!$hm) return null;
@@ -121,45 +122,26 @@ class AttendanceController extends Controller
 
         $breaks = collect($request->input('breaks', []));
 
-        DB::transaction(function () use ($request, $attendance, $admin, $date, $toDT, $breaks) {
-            // 1) 履歴を残す（管理者修正＝確定扱い）
-            StampCorrectionRequest::create([
-                'user_id'             => $attendance->user_id,
-                'attendance_id'       => $attendance->id,
-                'target_date'         => $date->toDateString(),
-                'requested_clock_in'  => $toDT($request->input('clock_in')),
-                'requested_clock_out' => $toDT($request->input('clock_out')),
-                'requested_breaks'    => $breaks->map(fn ($b) => [
-                    'start' => isset($b['start']) ? $toDT($b['start'])?->toDateTimeString() : null,
-                    'end'   => isset($b['end'])   ? $toDT($b['end'])?->toDateTimeString()   : null,
-                ])->filter(fn ($b) => $b['start'] || $b['end'])->values()->all(),
-                'reason'              => $request->input('note'), // 必須（FormRequestで担保）
-                'status'              => 'approved',
-                'approved_by'         => $admin->id,
-                'approved_at'         => now(),
-            ]);
+        // 1) 勤怠 上書き
+        $attendance->update([
+            'clock_in'  => $toDT($request->input('clock_in')),
+            'clock_out' => $toDT($request->input('clock_out')),
+        ]);
 
-            // 2) 勤怠実データ更新
-            $attendance->update([
-                'clock_in'  => $toDT($request->input('clock_in')),
-                'clock_out' => $toDT($request->input('clock_out')),
-            ]);
-
-            // 既存休憩を全削除→入れ直し（start/end 両方埋まっている行のみ）
-            $attendance->breakTimes()->delete();
-            foreach ($breaks as $b) {
-                $start = isset($b['start']) ? $toDT($b['start']) : null;
-                $end   = isset($b['end'])   ? $toDT($b['end'])   : null;
-                if ($start && $end) {
-                    $attendance->breakTimes()->create([
-                        'break_start' => $start,
-                        'break_end'   => $end,
-                    ]);
-                }
+        // 2) 休憩は全削除→入れ直し（開始・終了が両方ある行のみ）
+        $attendance->breakTimes()->delete();
+        foreach ($breaks as $b) {
+            $start = isset($b['start']) ? $toDT($b['start']) : null;
+            $end   = isset($b['end'])   ? $toDT($b['end'])   : null;
+            if ($start && $end) {
+                $attendance->breakTimes()->create([
+                    'break_start' => $start,
+                    'break_end'   => $end,
+                ]);
             }
-        });
+        }
 
-        // 成功時の戻り先振り分け
+        // 戻り先
         $return = $request->input('return_to');
         if ($return === 'list') {
             return redirect()
@@ -174,9 +156,9 @@ class AttendanceController extends Controller
                 ])
                 ->with('status', '勤怠を修正しました');
         }
-        // デフォルトは詳細に留まる
+
         return redirect()
             ->route('admin.attendance.show', $attendance)
-        ->with('status', '勤怠を修正しました');
+            ->with('status', '勤怠を修正しました');
     }
 }

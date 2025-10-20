@@ -145,6 +145,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
         Route::get('/stamp_correction_request/list', [AdminRequestController::class, 'index'])->name('admin.request.index');
         Route::get('/stamp_correction_request/approve/{attendance_correct_request_id}', [AdminRequestController::class, 'show'])->name('admin.request.show');
         Route::post('/stamp_correction_request/approve/{attendance_correct_request_id}', [AdminRequestController::class, 'approve'])->name('admin.request.approve');
+
+    // CSVダウンロード
+        Route::get('/staff/{staff}/attendance/export', [StaffController::class, 'exportCsv'])
+        ->name('admin.staff.export.csv');
 });
 
 // =====================================

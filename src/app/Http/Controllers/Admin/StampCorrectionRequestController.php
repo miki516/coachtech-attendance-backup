@@ -10,9 +10,7 @@ use Illuminate\Support\Facades\Auth;
 
 class StampCorrectionRequestController extends Controller
 {
-    // ============================
     // 承認一覧画面
-    // ============================
     public function index(Request $request)
     {
         // 全申請を取得（勤怠データ・ユーザーも読み込む）
@@ -30,9 +28,6 @@ class StampCorrectionRequestController extends Controller
         $pending  = $allRequests->where('status', 'pending');
         $approved = $allRequests->where('status', 'approved');
 
-        // ※管理者自身の修正は一覧に含めない場合
-        $approved = $approved->filter(fn($r) => !$r->approved_by);
-
         return view('admin.request.index', compact('pending', 'approved'));
     }
 
@@ -42,7 +37,7 @@ class StampCorrectionRequestController extends Controller
         $requestRec = StampCorrectionRequest::with(['attendance', 'user'])
             ->findOrFail($attendance_correct_request_id);
 
-        // ここでCarbonインスタンスに変換しておく
+        // Carbonインスタンスに変換
         $requestRec->clock_in_time  = $requestRec->requested_clock_in
             ? Carbon::parse($requestRec->requested_clock_in)
             : null;

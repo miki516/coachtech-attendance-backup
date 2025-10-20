@@ -8,6 +8,7 @@ use App\Models\Attendance;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class StaffController extends Controller
 {
@@ -79,5 +80,57 @@ class StaffController extends Controller
         return view('admin.staff.show', compact(
             'staff', 'rows', 'cursor', 'prevMonth', 'nextMonth', 'nextDisabled'
         ));
+    }
+
+    public function exportCsv(Request $request, User $staff)
+    {
+        $monthStr = $request->query('month');
+        $cursor   = $monthStr
+            ? Carbon::createFromFormat('Y-m-d', "{$monthStr}-01")
+            : now();
+
+        $start = $cursor->copy()->startOfMonth();
+        $end   = $cursor->copy()->endOfMonth();
+
+        // CSVレスポンス生成
+        $response = new StreamedResponse(function () use ($staff, $start, $end) {
+            $handle = fopen('php://output', 'w');
+            // ヘッダー行
+            fputcsv($handle, ['日付', '出勤', '退勤', '休憩時間', '合計時間']);
+
+            $attendances = Attendance::with('breakTimes')
+                ->where('user_id', $staff->id)
+                ->whereBetween('work_date', [$start->toDateString(), $end->toDateString()])
+                ->orderBy('work_date')
+                ->get();
+
+            foreach ($attendances as $att) {
+                $breakMin = $att->breakTimes->sum(function ($b) {
+                    return ($b->break_start && $b->break_end)
+                        ? $b->break_end->diffInMinutes($b->break_start)
+                        : 0;
+                });
+
+                $workMin = ($att->clock_in && $att->clock_out)
+                    ? max($att->clock_out->diffInMinutes($att->clock_in) - $breakMin, 0)
+                    : 0;
+
+                fputcsv($handle, [
+                    $att->work_date->format('Y/m/d'),
+                    $att->clock_in?->format('H:i') ?? '',
+                    $att->clock_out?->format('H:i') ?? '',
+                    $breakMin > 0 ? sprintf('%d:%02d', intdiv($breakMin,60), $breakMin%60) : '',
+                    $workMin > 0 ? sprintf('%d:%02d', intdiv($workMin,60), $workMin%60) : '',
+                ]);
+            }
+
+            fclose($handle);
+        });
+
+        $fileName = "{$staff->name}_{$cursor->format('Y_m')}_attendance.csv";
+        $response->headers->set('Content-Type', 'text/csv; charset=UTF-8');
+        $response->headers->set('Content-Disposition', "attachment; filename=\"$fileName\"");
+
+        return $response;
     }
 }

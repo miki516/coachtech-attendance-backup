@@ -50,5 +50,12 @@
                 @endforeach
             </tbody>
         </table>
+        <div style="text-align:center; margin-top:24px;">
+            <a href="{{ route('admin.staff.export.csv', ['staff' => $staff->id, 'month' => $cursor->format('Y-m')]) }}"
+                class="btn-csv"
+                style="display:inline-block;padding:8px 20px;background:black;color:white;border-radius:4px;text-decoration:none;">
+                CSV出力
+            </a>
+        </div>
     </div>
 @endsection
