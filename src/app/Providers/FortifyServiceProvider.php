@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Fortify\Fortify;
+use Laravel\Fortify\Contracts\RegisterResponse;
 use Laravel\Fortify\Contracts\LoginResponse;
 use Laravel\Fortify\Contracts\LogoutResponse;
 
@@ -21,7 +22,16 @@ class FortifyServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // 登録直後：メール認証誘導ページへ
+        $this->app->singleton(RegisterResponse::class, function () {
+            return new class implements RegisterResponse {
+                public function toResponse($request)
+                {
+                    // メール認証の案内ページ（verification.notice）へ
+                    return redirect()->route('verification.notice');
+                }
+            };
+        });
     }
 
     /**
@@ -82,5 +92,8 @@ class FortifyServiceProvider extends ServiceProvider
                 }
             };
         });
+
+        // 登録完了後は認証画面へリダイレクト
+        Fortify::redirects('register', '/email/verify');
     }
 }

@@ -28,7 +28,6 @@ class CreateNewUser implements CreatesNewUsers
             'role'     => 'user',
         ]);
 
-        event(new Registered($user)); // 認証メール送信トリガ
         return $user;
     }
 }
